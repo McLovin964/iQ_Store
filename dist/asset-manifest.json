@@ -1,6 +1,6 @@
 {
   "files": {
-    "main.css": "./static/css/main.d299b73f.css",
+    "main.css": "./static/css/main.91cbe785.css",
     "main.js": "./static/js/main.ffc59855.js",
     "static/media/books.png": "./static/media/books.06450fa1dec913b8ecba.png",
     "static/media/exclusive.png": "./static/media/exclusive.c4b670910bab4a238043.png",
@@ -18,11 +18,11 @@
     "static/media/nav-profile.svg": "./static/media/nav-profile.e1f4f88d458541f6d63c018bcbe65743.svg",
     "static/media/Product_list_icon.svg": "./static/media/Product_list_icon.94f73f2271a860ff3b8c8223026cb7aa.svg",
     "index.html": "./index.html",
-    "main.d299b73f.css.map": "./static/css/main.d299b73f.css.map",
+    "main.91cbe785.css.map": "./static/css/main.91cbe785.css.map",
     "main.ffc59855.js.map": "./static/js/main.ffc59855.js.map"
   },
   "entrypoints": [
-    "static/css/main.d299b73f.css",
+    "static/css/main.91cbe785.css",
     "static/js/main.ffc59855.js"
   ]
 }
