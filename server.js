@@ -427,16 +427,15 @@ app.get(/^\/admin\/.*$/, (req, res) => {
   res.sendFile(path.join(__dirname, 'dist/admin/index.html'));
 });
 
-// Serve Main SPA static files
-app.use('/main', express.static(path.join(__dirname, 'dist/main')));
-
-// Main SPA fallback (any route under /main not matching a file)
-app.get(/^\/main\/.*$/, (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist/main/index.html'));
+// Serve main SPA
+app.use(express.static(path.join(__dirname, 'dist')));
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist/index.html'));
 });
 
+
 // Redirect root to Main SPA
-app.get('/', (req, res) => res.redirect('/main'));
+// app.get('/', (req, res) => res.redirect('/main'));
 
 
 // =================== DB & SERVER START ===================
