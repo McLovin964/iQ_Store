@@ -15,7 +15,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 // const PORT = 5000;
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT;
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -416,17 +416,6 @@ async function cleanUploads() {
 
 // =================== STATIC FILES ===================
 
-// Serve admin static assets first
-app.use('/admin/assets', express.static(path.join(__dirname, 'dist/admin/assets')));
-
-// Serve admin SPA files
-app.use('/admin', express.static(path.join(__dirname, 'dist/admin')));
-
-// Catch-all for any /admin/* route → index.html
-app.get(/^\/admin\/.*$/, (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist/admin/index.html'));
-});
-
 // Serve main SPA
 app.use(express.static(path.join(__dirname, 'dist')));
 app.get(/^\/(?!api\/).*/, (req, res) => {
@@ -493,7 +482,7 @@ app.get(/^\/(?!api\/).*/, (req, res) => {
 
     // Start server
     app.listen(PORT, () => {
-      console.log(`🚀 Server running at http://localhost:${PORT}`);
+      console.log(`🚀 Server running at on port ${PORT}`);
     });
 
   } catch (err) {
