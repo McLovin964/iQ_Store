@@ -1,0 +1,28 @@
+{
+  "files": {
+    "main.css": "./static/css/main.d299b73f.css",
+    "main.js": "./static/js/main.ffc59855.js",
+    "static/media/books.png": "./static/media/books.06450fa1dec913b8ecba.png",
+    "static/media/exclusive.png": "./static/media/exclusive.c4b670910bab4a238043.png",
+    "static/media/cart_remove_icon.png": "./static/media/cart_remove_icon.bbdb5cd435c5ccd9eb4f.png",
+    "static/media/phones.png": "./static/media/phones.1b706f1e906adc54c239.png",
+    "static/media/phones_banner.png": "./static/media/phones_banner.ce7864cfd7fd7062ef06.png",
+    "static/media/books_banner.png": "./static/media/books_banner.958a24b571609a5a5a51.png",
+    "static/media/FunnelDisplay.ttf": "./static/media/FunnelDisplay.ad202d26c9a8f4ec0327.ttf",
+    "static/media/edit_icon.png": "./static/media/edit_icon.bd176f6ff8952730f89b.png",
+    "static/media/wave.svg": "./static/media/wave.fe6e6d491b327ca36367ccede7d3a836.svg",
+    "static/media/upload_area.svg": "./static/media/upload_area.412d9ffb2abf2e2ca090f31422e238f7.svg",
+    "static/media/admin-logo.svg": "./static/media/admin-logo.dad428acba854ea2deda47ab478d2baa.svg",
+    "static/media/logo.svg": "./static/media/logo.d4d9f051f5cb8ec425ae07059d82e061.svg",
+    "static/media/cart.svg": "./static/media/cart.fc8bf430cd2a0874f73c98ca7a2b0aa2.svg",
+    "static/media/nav-profile.svg": "./static/media/nav-profile.e1f4f88d458541f6d63c018bcbe65743.svg",
+    "static/media/Product_list_icon.svg": "./static/media/Product_list_icon.94f73f2271a860ff3b8c8223026cb7aa.svg",
+    "index.html": "./index.html",
+    "main.d299b73f.css.map": "./static/css/main.d299b73f.css.map",
+    "main.ffc59855.js.map": "./static/js/main.ffc59855.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.d299b73f.css",
+    "static/js/main.ffc59855.js"
+  ]
+}

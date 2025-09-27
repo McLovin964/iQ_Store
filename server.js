@@ -1,0 +1,504 @@
+import express from 'express';
+import mysql from 'mysql2/promise';
+import multer from 'multer';
+import cors from 'cors';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import 'dotenv/config';
+
+// __filename and __dirname equivalents in ES module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+// const PORT = 5000;
+const PORT = process.env.PORT || 3000;
+
+const JWT_SECRET = process.env.JWT_SECRET;
+
+const API_URL = "http://localhost:3000";
+
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5000'], // allow dev frontends
+  credentials: true
+}));
+
+
+// JSON parser
+app.use(express.json());
+
+// Ensure uploads directory exists
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+
+// Multer config
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => {
+    const uniqueName = Date.now() + path.extname(file.originalname);
+    cb(null, uniqueName);
+  },
+});
+const upload = multer({ storage });
+
+// Serve uploaded files
+app.use('/uploads', express.static(uploadDir));
+
+app.use((req, res, next) => {
+  res.setHeader(
+    "Content-Security-Policy",
+    `
+      default-src 'self';
+      img-src 'self' data: http://localhost:5000 http://localhost:3000;
+      font-src 'self' data:;
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:3000;
+      style-src 'self' 'unsafe-inline' http://localhost:3000;
+      connect-src 'self' http://localhost:5000 http://localhost:3000;
+      manifest-src 'self';
+      object-src 'none';
+      base-uri 'self';
+    `.replace(/\n/g, ' ')
+  );
+  next();
+});
+
+// DB connection
+const db = mysql.createPool({
+  host: process.env.DB_HOST,      // e.g., Cloud SQL private IP or public host
+  user: process.env.DB_USER,      // your DB username
+  password: process.env.DB_PASSWORD,  // your DB password
+  database: process.env.DB_NAME,  // the existing database name
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+});
+
+// Backend URL
+const backendURL = `http://localhost:${PORT}`;
+
+// JWT middleware
+const verifyToken = (req, res, next) => {
+  const token = req.header('Authorization')?.split(' ')[1];
+  if (!token) return res.status(401).json({ message: 'No token provided' });
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.userId = decoded.userId;
+    next();
+  } catch {
+    res.status(401).json({ message: 'Invalid or expired token' });
+  }
+};
+
+// =================== ROUTES ===================
+
+// Get all items
+app.get('/allItems', async (req, res) => {
+  try {
+    const [products] = await db.query(`
+      SELECT p.id, p.name, p.old_price, p.new_price,
+             p.image_path, c.name AS category
+      FROM products p
+      JOIN categories c ON p.category_id = c.id
+    `);
+
+    const formatted = products.map(item => ({
+      id: item.id,
+      name: item.name,
+      old_price: item.old_price,
+      new_price: item.new_price,
+      category: item.category,
+      image: `/uploads/${item.image_path}`,
+      catId: `${item.category.toLowerCase()}-${item.id}` // frontend expects this
+    }));
+
+    res.json(formatted);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to fetch items' });
+  }
+});
+
+// Login
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    const [results] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+    if (results.length === 0) return res.status(401).json({ message: 'Invalid email or password' });
+
+    const user = results[0];
+
+    // Compare password
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) return res.status(401).json({ message: 'Invalid email or password' });
+
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '1h' });
+    res.json({ message: 'Login successful', user: { id: user.id, name: user.name, email: user.email }, token });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Login failed' });
+  }
+});
+
+// Signup
+app.post('/signup', async (req, res) => {
+  const { name, email, password } = req.body;
+  try {
+    // Check if user exists
+    const [existing] = await db.query('SELECT id FROM users WHERE email = ?', [email]);
+    if (existing.length > 0) return res.status(400).json({ message: 'User already exists' });
+
+    // Hash password
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    // Store hashed password
+    await db.query('INSERT INTO users (name, email, password) VALUES (?, ?, ?)', [name, email, hashedPassword]);
+
+    res.json({ message: 'Signup successful' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Signup failed' });
+  }
+});
+
+// Save cart
+app.post('/saveCart', verifyToken, async (req, res) => {
+  const userId = req.userId;
+  const { cartItems } = req.body;
+
+  if (!Array.isArray(cartItems)) return res.status(400).json({ message: 'Invalid data' });
+
+  try {
+    // Clear existing
+    await db.query('DELETE FROM cart_items WHERE user_id = ?', [userId]);
+
+    // Insert new items
+    for (const item of cartItems) {
+      await db.query(
+        'INSERT INTO cart_items (user_id, product_id, quantity) VALUES (?, ?, ?)',
+        [userId, item.itemId, item.quantity]
+      );
+    }
+
+    res.json({ message: 'Cart saved successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to save cart' });
+  }
+});
+
+// Get cart
+app.post('/getCart', async (req, res) => {
+  const { userId } = req.body;
+  if (!userId) return res.status(400).json({ message: 'User ID required' });
+
+  try {
+    const [rows] = await db.query(`
+      SELECT p.id, p.name, p.old_price, p.new_price, p.image_path, c.name AS category, ci.quantity
+      FROM cart_items ci
+      JOIN products p ON ci.product_id = p.id
+      JOIN categories c ON p.category_id = c.id
+      WHERE ci.user_id = ?
+    `, [userId]);
+
+    const formatted = rows.map(item => ({
+      ...item,
+      image: `/uploads/${item.image_path}`,
+      catId: `${item.category.toLowerCase()}-${item.id}`
+    }));
+
+    res.json({ cartItems: formatted });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to fetch cart' });
+  }
+});
+
+// Add Item with Image
+app.post('/addItem', upload.single('image'), async (req, res) => {
+  const { name, category, old_price, new_price } = req.body;
+  const imageFile = req.file;
+
+  if (!name || !category || !old_price || !new_price || !imageFile) {
+    return res.status(400).json({ message: 'Missing required fields or image' });
+  }
+
+  try {
+    // Get category ID
+    const [catRows] = await db.query('SELECT id FROM categories WHERE name = ?', [category]);
+    if (catRows.length === 0) return res.status(400).json({ message: 'Invalid category' });
+    const categoryId = catRows[0].id;
+
+    // Insert product with temporary filename
+    const [result] = await db.query(`
+      INSERT INTO products (name, category_id, old_price, new_price, image_path)
+      VALUES (?, ?, ?, ?, ?)
+    `, [name, categoryId, old_price, new_price, imageFile.filename]);
+
+    const id = result.insertId;
+    const ext = path.extname(imageFile.originalname);
+    const finalFilename = `${category.toLowerCase()}-${id}${ext}`;
+
+    // Rename uploaded file to final filename
+    const oldPath = path.join(uploadDir, imageFile.filename);
+    const newPath = path.join(uploadDir, finalFilename);
+    await fs.promises.rename(oldPath, newPath);
+
+    // Update product with correct filename
+    await db.query('UPDATE products SET image_path = ? WHERE id = ?', [finalFilename, id]);
+
+    // Clean orphaned uploads
+    await cleanUploads();
+
+    res.status(201).json({
+      message: 'Item added successfully',
+      item: {
+        id,
+        name,
+        old_price,
+        new_price,
+        category,
+        image: `/uploads/${finalFilename}`,
+        catId: `${category.toLowerCase()}-${id}`
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to add product' });
+  }
+});
+
+// Delete Item
+app.delete('/deleteItem/:catAndId', async (req, res) => {
+  const catAndId = req.params.catAndId;
+  const lastDash = catAndId.lastIndexOf('-');
+  const id = catAndId.substring(lastDash + 1);
+
+  try {
+    // Get image path
+    const [rows] = await db.query('SELECT image_path FROM products WHERE id = ?', [id]);
+    if (rows.length === 0) return res.status(404).json({ message: 'Item not found' });
+
+    const imagePath = rows[0].image_path;
+
+    // Delete product
+    await db.query('DELETE FROM products WHERE id = ?', [id]);
+
+    // Delete image file
+    if (imagePath) {
+      const fullPath = path.join(uploadDir, imagePath);
+      if (fs.existsSync(fullPath)) await fs.promises.unlink(fullPath);
+    }
+
+    //Clean orphaned uploads
+    await cleanUploads();
+
+    res.json({ message: `Item ${catAndId} deleted successfully` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to delete item' });
+  }
+});
+
+// Update Item
+app.put('/updateItem/:catAndId', upload.single('image'), async (req, res) => {
+  const { name, old_price, new_price, category } = req.body;
+  const catAndId = req.params.catAndId;
+  const lastDash = catAndId.lastIndexOf('-');
+  const id = catAndId.substring(lastDash + 1);
+
+  try {
+    // Get category ID
+    const [catRows] = await db.query('SELECT id FROM categories WHERE name = ?', [category]);
+    if (catRows.length === 0) return res.status(400).json({ message: 'Invalid category' });
+    const categoryId = catRows[0].id;
+
+    // Get existing product
+    const [productRows] = await db.query('SELECT image_path FROM products WHERE id = ?', [id]);
+    if (productRows.length === 0) return res.status(404).json({ message: 'Item not found' });
+
+    let currentImage = productRows[0].image_path;
+
+    // Handle new image if uploaded
+    if (req.file) {
+      const ext = path.extname(req.file.originalname);
+      const newFilename = `${category.toLowerCase()}-${id}${ext}`;
+      const oldPath = path.join(uploadDir, req.file.filename);
+      const newPath = path.join(uploadDir, newFilename);
+
+      // Rename uploaded file to final filename
+      await fs.promises.rename(oldPath, newPath);
+
+      // Delete old image if it exists and is different
+      if (currentImage && currentImage !== newFilename) {
+        const oldFullPath = path.join(uploadDir, currentImage);
+        if (fs.existsSync(oldFullPath)) await fs.promises.unlink(oldFullPath);
+      }
+
+      currentImage = newFilename;
+    }
+
+    // Update product
+    await db.query(`
+      UPDATE products
+      SET name = ?, old_price = ?, new_price = ?, category_id = ?, image_path = ?
+      WHERE id = ?
+    `, [name, old_price, new_price, categoryId, currentImage, id]);
+
+    // Clean orphaned uploads
+    await cleanUploads();
+
+    res.json({ message: 'Item updated successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to update item' });
+  }
+});
+
+// Get new items (the 4 latest by Created_at date from each table)
+app.get('/newItems', async (req, res) => {
+  try {
+    // Fetch latest 4 products per category
+    const [rows] = await db.query(`
+      SELECT p.id, p.name, p.old_price, p.new_price, p.image_path, c.name AS category
+      FROM products p
+      JOIN categories c ON p.category_id = c.id
+      WHERE c.name IN ('books', 'phones')  -- or dynamically select all categories
+      ORDER BY p.created_at DESC
+    `);
+
+    // Group by category and take latest 4 per category
+    const latestItems = {};
+    rows.forEach(item => {
+      if (!latestItems[item.category]) latestItems[item.category] = [];
+      if (latestItems[item.category].length < 4) latestItems[item.category].push(item);
+    });
+
+    // Flatten and format
+    const formatted = Object.values(latestItems).flat().map(item => ({
+      id: item.id,
+      name: item.name,
+      old_price: item.old_price,
+      new_price: item.new_price,
+      category: item.category,
+      image: `/uploads/${item.image_path}`,
+      catId: `${item.category.toLowerCase()}-${item.id}`
+    }));
+
+    res.json(formatted);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to fetch new items' });
+  }
+});
+
+// Cleanup uploads safely
+async function cleanUploads() {
+  try {
+    const filesInUploads = await fs.promises.readdir(uploadDir);
+
+    // Fetch current product images
+    const [productImages] = await db.query('SELECT image_path FROM products');
+    const usedImages = new Set(productImages.map(r => r.image_path));
+
+    // Delete only orphaned files
+    const orphanedFiles = filesInUploads.filter(f => !usedImages.has(f));
+    await Promise.all(orphanedFiles.map(f => fs.promises.unlink(path.join(uploadDir, f))));
+
+    console.log(`Cleanup complete: ${orphanedFiles.length} orphaned files deleted.`);
+  } catch (err) {
+    console.error('Cleanup error:', err);
+  }
+}
+
+// =================== STATIC FILES ===================
+
+// Serve admin static assets first
+app.use('/admin/assets', express.static(path.join(__dirname, 'dist/admin/assets')));
+
+// Serve admin SPA files
+app.use('/admin', express.static(path.join(__dirname, 'dist/admin')));
+
+// Catch-all for any /admin/* route → index.html
+app.get(/^\/admin\/.*$/, (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist/admin/index.html'));
+});
+
+// Serve Main SPA static files
+app.use('/main', express.static(path.join(__dirname, 'dist/main')));
+
+// Main SPA fallback (any route under /main not matching a file)
+app.get(/^\/main\/.*$/, (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist/main/index.html'));
+});
+
+// Redirect root to Main SPA
+app.get('/', (req, res) => res.redirect('/main'));
+
+
+// =================== DB & SERVER START ===================
+(async () => {
+  try {
+    // Users table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        email VARCHAR(100) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL
+      )
+    `);
+
+    // Categories table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS categories (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(50) NOT NULL UNIQUE
+      )
+    `);
+
+    // Seed default categories (if they don't exist)
+    await db.query(`
+      INSERT IGNORE INTO categories (name) 
+      VALUES ('Books'), ('Phones'), ('Laptops')
+    `);
+
+    // Products table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS products (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        category_id INT NOT NULL,
+        old_price DECIMAL(10,2) NOT NULL,
+        new_price DECIMAL(10,2) NOT NULL,
+        image_path VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Cart items table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS cart_items (
+        user_id INT NOT NULL,
+        product_id INT NOT NULL,
+        quantity INT NOT NULL DEFAULT 0,
+        PRIMARY KEY (user_id, product_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Start server
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running at http://localhost:${PORT}`);
+    });
+
+  } catch (err) {
+    console.error("Failed to setup DB or start server:", err);
+    process.exit(1);
+  }
+})();

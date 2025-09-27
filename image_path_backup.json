@@ -1,0 +1,98 @@
+[
+  {
+    "id": 1,
+    "image_path": "books-1.jpg"
+  },
+  {
+    "id": 2,
+    "image_path": "books-2.jpg"
+  },
+  {
+    "id": 3,
+    "image_path": "books-3.jpg"
+  },
+  {
+    "id": 4,
+    "image_path": "books-4.jpg"
+  },
+  {
+    "id": 5,
+    "image_path": "books-5.jpg"
+  },
+  {
+    "id": 6,
+    "image_path": "books-6.jpg"
+  },
+  {
+    "id": 7,
+    "image_path": "books-7.jpg"
+  },
+  {
+    "id": 8,
+    "image_path": "books-8.jpg"
+  },
+  {
+    "id": 9,
+    "image_path": "books-9.jpg"
+  },
+  {
+    "id": 10,
+    "image_path": "books-10.jpg"
+  },
+  {
+    "id": 11,
+    "image_path": "books-11.jpg"
+  },
+  {
+    "id": 12,
+    "image_path": "books-12.jpg"
+  },
+  {
+    "id": 13,
+    "image_path": "phones-13.webp"
+  },
+  {
+    "id": 14,
+    "image_path": "phones-14.webp"
+  },
+  {
+    "id": 15,
+    "image_path": "phones-15.webp"
+  },
+  {
+    "id": 16,
+    "image_path": "phones-16.webp"
+  },
+  {
+    "id": 17,
+    "image_path": "phones-17.webp"
+  },
+  {
+    "id": 18,
+    "image_path": "phones-18.webp"
+  },
+  {
+    "id": 19,
+    "image_path": "phones-19.webp"
+  },
+  {
+    "id": 20,
+    "image_path": "phones-20.webp"
+  },
+  {
+    "id": 21,
+    "image_path": "phones-21.webp"
+  },
+  {
+    "id": 22,
+    "image_path": "phones-22.webp"
+  },
+  {
+    "id": 23,
+    "image_path": "phones-23.webp"
+  },
+  {
+    "id": 24,
+    "image_path": "phones-24.webp"
+  }
+]
